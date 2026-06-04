@@ -28,7 +28,7 @@ with_sentry_transaction <- function(name, op, code, sentry_trace = NULL) {
   on.exit({
     sentry_clear_current_span()
     sentry_span_finish(tx)
-    sentry_flush()
+    sentry_flush(2000L)
   }, add = TRUE)
 
   tryCatch(
