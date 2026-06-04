@@ -13,4 +13,6 @@ Config/rextendr/version: 0.5.0
 SystemRequirements: Cargo (Rust's package manager), rustc, xz
 Depends: 
     R (>= 4.2)
+Suggests:
+    plumber
 Config/roxygen2/version: 8.0.0

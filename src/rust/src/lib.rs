@@ -26,7 +26,6 @@ fn parse_level(level: &str) -> Level {
 }
 
 /// Initialize the global Sentry client.
-/// @export
 #[extendr]
 fn sentry_init(
     dsn: &str,
@@ -55,7 +54,6 @@ fn sentry_init(
 }
 
 /// Report whether the global Sentry client is enabled.
-/// @export
 #[extendr]
 fn sentry_enabled() -> bool {
     sentry_guard()
@@ -74,7 +72,6 @@ fn sentry_capture_message(message: &str, level: &str) -> String {
 }
 
 /// Flush pending Sentry envelopes.
-/// @export
 #[extendr]
 fn sentry_flush(timeout_ms: Option<i32>) -> bool {
     let timeout = timeout_ms.map(|ms| Duration::from_millis(ms.max(0) as u64));
@@ -87,7 +84,6 @@ fn sentry_flush(timeout_ms: Option<i32>) -> bool {
 }
 
 /// Close the global Sentry client.
-/// @export
 #[extendr]
 fn sentry_close(timeout_ms: Option<i32>) -> bool {
     let timeout = timeout_ms.map(|ms| Duration::from_millis(ms.max(0) as u64));
@@ -99,7 +95,6 @@ fn sentry_close(timeout_ms: Option<i32>) -> bool {
 }
 
 /// Start a transaction, optionally continuing an inbound `sentry-trace` header.
-/// @export
 #[extendr]
 fn sentry_transaction_start(name: &str, op: &str, sentry_trace: Option<String>) -> SentrySpan {
     let ctx = match sentry_trace.as_deref().filter(|trace| !trace.is_empty()) {
@@ -111,28 +106,24 @@ fn sentry_transaction_start(name: &str, op: &str, sentry_trace: Option<String>) 
 }
 
 /// Start a child span from an existing transaction or span.
-/// @export
 #[extendr]
 fn sentry_span_start_child(parent: &SentrySpan, op: &str, description: &str) -> SentrySpan {
     SentrySpan(parent.0.start_child(op, description).into())
 }
 
 /// Set the active span on the current Sentry scope.
-/// @export
 #[extendr]
 fn sentry_set_current_span(span: &SentrySpan) {
     sentry::configure_scope(|scope| scope.set_span(Some(span.0.clone())));
 }
 
 /// Clear the active span from the current Sentry scope.
-/// @export
 #[extendr]
 fn sentry_clear_current_span() {
     sentry::configure_scope(|scope| scope.set_span(None));
 }
 
 /// Finish a transaction or span.
-/// @export
 #[extendr]
 fn sentry_span_finish(span: &SentrySpan) {
     match span.0.clone() {
