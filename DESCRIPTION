@@ -1,0 +1,16 @@
+Package: sentry.sdk
+Title: Rust-Powered Sentry SDK Bindings for R
+Version: 0.1.0
+Authors@R: 
+    person("Adam", "Smielewski", , "adam.smielewski@finccam.com", role = c("aut", "cre"))
+Description: Provides minimal R bindings to the Sentry Rust SDK for
+    initializing a client, capturing messages, and creating transactions
+    and spans with inbound distributed tracing support.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Config/rextendr/version: 0.5.0
+SystemRequirements: Cargo (Rust's package manager), rustc, xz
+Depends: 
+    R (>= 4.2)
+Config/roxygen2/version: 8.0.0
