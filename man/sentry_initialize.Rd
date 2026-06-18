@@ -10,7 +10,8 @@ sentry_initialize(
   release = NULL,
   debug = FALSE,
   shutdown_timeout_ms = 2000L,
-  traces_sample_rate = 1
+  traces_sample_rate = 1,
+  enable_logs = FALSE
 )
 }
 \description{

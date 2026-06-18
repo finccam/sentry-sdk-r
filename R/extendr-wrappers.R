@@ -6,14 +6,20 @@
 NULL
 
 #' Initialize the global Sentry client.
-sentry_init <- function(dsn, environment, release, debug, shutdown_timeout_ms, traces_sample_rate) .Call(wrap__sentry_init, dsn, environment, release, debug, shutdown_timeout_ms, traces_sample_rate)
+sentry_init <- function(dsn, environment, release, debug, shutdown_timeout_ms, traces_sample_rate, enable_logs) .Call(wrap__sentry_init, dsn, environment, release, debug, shutdown_timeout_ms, traces_sample_rate, enable_logs)
 
 #' Report whether the global Sentry client is enabled.
 sentry_enabled <- function() .Call(wrap__sentry_enabled)
 
+#' Report whether the global Sentry client is enabled for structured logs.
+sentry_logs_enabled <- function() .Call(wrap__sentry_logs_enabled)
+
 #' Capture a Sentry message at the requested level.
 #' @export
 sentry_capture_message <- function(message, level) .Call(wrap__sentry_capture_message, message, level)
+
+#' Capture a structured Sentry log.
+sentry_capture_log <- function(level, message, logger, caller) .Call(wrap__sentry_capture_log, level, message, logger, caller)
 
 #' Flush pending Sentry envelopes.
 sentry_flush <- function(timeout_ms) .Call(wrap__sentry_flush, timeout_ms)

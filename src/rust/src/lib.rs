@@ -1,10 +1,13 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use extendr_api::prelude::*;
-use sentry::{ClientInitGuard, ClientOptions, Level, TransactionContext, TransactionOrSpan};
+use sentry::protocol::{Log, LogAttribute, LogLevel, Map, Value};
+use sentry::{ClientInitGuard, ClientOptions, Hub, Level, TransactionContext, TransactionOrSpan};
 
 static SENTRY_GUARD: OnceLock<Mutex<Option<ClientInitGuard>>> = OnceLock::new();
+static SENTRY_LOGS_ENABLED: AtomicBool = AtomicBool::new(false);
 
 #[extendr]
 #[derive(Clone)]
@@ -25,6 +28,29 @@ fn parse_level(level: &str) -> Level {
     }
 }
 
+fn parse_log_level(level: &str) -> LogLevel {
+    match level.to_ascii_lowercase().as_str() {
+        "trace" => LogLevel::Trace,
+        "debug" => LogLevel::Debug,
+        "info" => LogLevel::Info,
+        "warning" | "warn" => LogLevel::Warn,
+        "error" => LogLevel::Error,
+        "fatal" => LogLevel::Fatal,
+        _ => LogLevel::Info,
+    }
+}
+
+fn non_empty_string(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_owned())
+        }
+    })
+}
+
 /// Initialize the global Sentry client.
 #[extendr]
 fn sentry_init(
@@ -34,6 +60,7 @@ fn sentry_init(
     debug: bool,
     shutdown_timeout_ms: i32,
     traces_sample_rate: f64,
+    enable_logs: bool,
 ) -> bool {
     let mut options = ClientOptions::default();
     options.environment = environment.map(Into::into);
@@ -41,6 +68,7 @@ fn sentry_init(
     options.debug = debug;
     options.shutdown_timeout = Duration::from_millis(shutdown_timeout_ms.max(0) as u64);
     options.traces_sample_rate = traces_sample_rate as f32;
+    options.enable_logs = enable_logs;
 
     let mut guard_slot = sentry_guard().lock().unwrap();
     if let Some(guard) = guard_slot.take() {
@@ -49,6 +77,7 @@ fn sentry_init(
 
     let guard = sentry::init((dsn, options));
     let enabled = guard.is_enabled();
+    SENTRY_LOGS_ENABLED.store(enabled && enable_logs, Ordering::Relaxed);
     *guard_slot = Some(guard);
     enabled
 }
@@ -64,11 +93,55 @@ fn sentry_enabled() -> bool {
         .unwrap_or(false)
 }
 
+/// Report whether the global Sentry client is enabled for structured logs.
+#[extendr]
+fn sentry_logs_enabled() -> bool {
+    sentry_enabled() && SENTRY_LOGS_ENABLED.load(Ordering::Relaxed)
+}
+
 /// Capture a Sentry message at the requested level.
 /// @export
 #[extendr]
 fn sentry_capture_message(message: &str, level: &str) -> String {
     sentry::capture_message(message, parse_level(level)).to_string()
+}
+
+/// Capture a structured Sentry log.
+#[extendr]
+fn sentry_capture_log(
+    level: &str,
+    message: &str,
+    logger: Option<String>,
+    caller: Option<String>,
+) -> bool {
+    if !sentry_logs_enabled() {
+        return false;
+    }
+
+    let mut attributes = Map::new();
+
+    if let Some(logger) = non_empty_string(logger) {
+        attributes.insert("logger.name".to_owned(), LogAttribute(Value::from(logger)));
+    }
+
+    if let Some(caller) = non_empty_string(caller) {
+        attributes.insert(
+            "code.function".to_owned(),
+            LogAttribute(Value::from(caller)),
+        );
+    }
+
+    let log = Log {
+        level: parse_log_level(level),
+        body: message.to_owned(),
+        trace_id: None,
+        timestamp: SystemTime::now(),
+        severity_number: None,
+        attributes,
+    };
+
+    Hub::current().capture_log(log);
+    true
 }
 
 /// Flush pending Sentry envelopes.
@@ -88,6 +161,7 @@ fn sentry_flush(timeout_ms: Option<i32>) -> bool {
 fn sentry_close(timeout_ms: Option<i32>) -> bool {
     let timeout = timeout_ms.map(|ms| Duration::from_millis(ms.max(0) as u64));
     let mut guard_slot = sentry_guard().lock().unwrap();
+    SENTRY_LOGS_ENABLED.store(false, Ordering::Relaxed);
     guard_slot
         .take()
         .map(|guard| guard.close(timeout))
@@ -136,7 +210,9 @@ extendr_module! {
     mod sentry_sdk;
     fn sentry_init;
     fn sentry_enabled;
+    fn sentry_logs_enabled;
     fn sentry_capture_message;
+    fn sentry_capture_log;
     fn sentry_flush;
     fn sentry_close;
     fn sentry_transaction_start;

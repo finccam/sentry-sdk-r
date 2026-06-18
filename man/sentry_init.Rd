@@ -10,7 +10,8 @@ sentry_init(
   release,
   debug,
   shutdown_timeout_ms,
-  traces_sample_rate
+  traces_sample_rate,
+  enable_logs
 )
 }
 \description{

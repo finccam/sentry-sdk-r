@@ -6,7 +6,8 @@ sentry_initialize <- function(
   release = NULL,
   debug = FALSE,
   shutdown_timeout_ms = 2000L,
-  traces_sample_rate = 1
+  traces_sample_rate = 1,
+  enable_logs = FALSE
 ) {
   sentry_init(
     dsn = dsn,
@@ -14,8 +15,130 @@ sentry_initialize <- function(
     release = release,
     debug = debug,
     shutdown_timeout_ms = as.integer(shutdown_timeout_ms),
-    traces_sample_rate = as.numeric(traces_sample_rate)
+    traces_sample_rate = as.numeric(traces_sample_rate),
+    enable_logs = isTRUE(enable_logs)
   )
+}
+
+sentry_has_namespace <- function(package) {
+  requireNamespace(package, quietly = TRUE)
+}
+
+sentry_lgr_appender_class <- local({
+  appenderClass <- NULL
+
+  function() {
+    if (!is.null(appenderClass)) {
+      return(appenderClass)
+    }
+
+    if (!sentry_has_namespace("lgr")) {
+      return(NULL)
+    }
+
+    appenderClass <<- R6::R6Class(
+      "SentryAppender",
+      inherit = lgr::Appender,
+      public = list(
+        initialize = function(threshold = NA_integer_) {
+          super$initialize(
+            threshold = threshold,
+            layout = lgr::LayoutFormat$new(fmt = "%m")
+          )
+        },
+        append = function(event) {
+          if (!sentry_enabled() || !sentry_logs_enabled()) {
+            return(invisible(NULL))
+          }
+
+          nEvents <- max(
+            length(event$msg),
+            length(event$level_name),
+            length(event$logger),
+            length(event$caller)
+          )
+
+          for (index in seq_len(nEvents)) {
+            sentry_capture_log(
+              level = sentry_lgr_event_value(event$level_name, index),
+              message = sentry_lgr_event_value(event$msg, index),
+              logger = sentry_lgr_event_value(event$logger, index),
+              caller = sentry_lgr_event_value(event$caller, index)
+            )
+          }
+
+          invisible(NULL)
+        }
+      ),
+      active = list(
+        destination = function() "Sentry Logs"
+      )
+    )
+
+    appenderClass
+  }
+})
+
+sentry_lgr_event_value <- function(value, index) {
+  if (length(value) == 0) {
+    return(NULL)
+  }
+
+  if (length(value) == 1) {
+    value <- value[[1]]
+  } else {
+    value <- value[[index]]
+  }
+
+  if (is.null(value) || length(value) == 0 || is.na(value)) {
+    return(NULL)
+  }
+
+  as.character(value)
+}
+
+#' Create an `lgr` appender that forwards logs to Sentry.
+#' @export
+sentry_lgr_appender <- function(threshold = NA_integer_) {
+  appenderClass <- sentry_lgr_appender_class()
+  if (is.null(appenderClass)) {
+    return(invisible(NULL))
+  }
+
+  appenderClass$new(threshold = threshold)
+}
+
+#' Attach the Sentry `lgr` appender to a logger.
+#' @export
+sentry_attach_lgr <- function(logger = NULL, name = "sentry", threshold = NA_integer_) {
+  if (!sentry_has_namespace("lgr")) {
+    return(invisible(FALSE))
+  }
+
+  if (is.null(logger)) {
+    logger <- lgr::get_logger()
+  }
+
+  if (!inherits(logger, "Logger")) {
+    return(invisible(FALSE))
+  }
+
+  existingAppender <- logger$appenders[[name]]
+  if (inherits(existingAppender, "SentryAppender")) {
+    return(invisible(TRUE))
+  }
+
+  if (!is.null(existingAppender)) {
+    logger$remove_appender(name)
+  }
+
+  appender <- sentry_lgr_appender(threshold = threshold)
+  if (is.null(appender)) {
+    return(invisible(FALSE))
+  }
+
+  logger$add_appender(appender, name = name)
+  invisible(TRUE)
 }
 
 sentry_plumber_default_transaction_name <- function(req) {
