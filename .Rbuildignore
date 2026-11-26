@@ -3,3 +3,7 @@
 ^src/rust/target$
 ^src/Makevars$
 ^src/Makevars\.win$
+^rpx\.lock$
+^\.github$
+^\.claude$
+^.*\.Rcheck$
