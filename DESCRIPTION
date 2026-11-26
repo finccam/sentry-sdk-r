@@ -1,6 +1,6 @@
 Package: sentry.sdk
 Title: Rust-Powered Sentry SDK Bindings for R
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: 
     person("Adam", "Smielewski", , "adam.smielewski@finccam.com", role = c("aut", "cre"))
 Description: Provides minimal R bindings to the Sentry Rust SDK for
